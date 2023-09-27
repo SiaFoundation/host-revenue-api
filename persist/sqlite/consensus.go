@@ -38,6 +38,9 @@ func (s *Store) ProcessConsensusChange(cc modules.ConsensusChange) {
 
 	err := s.transaction(func(tx txn) error {
 		for _, reverted := range cc.RevertedBlocks {
+			// note: since the stats are incremented only afer the payout matures,
+			// there's no need to revert them when a block is reverted. The
+			// payout value should still be the same.
 			blockID := types.BlockID(reverted.ID())
 			if err := revertBlock(tx, blockID); err != nil {
 				return fmt.Errorf("failed to revert block %q: %w", blockID, err)

@@ -181,6 +181,7 @@ func (a *api) handleGetWeb3Index(c jape.Context) {
 			Revenue: rev,
 		})
 	}
+	c.Encode(resp)
 }
 
 // NewServer returns an http.Handler that serves the API.
