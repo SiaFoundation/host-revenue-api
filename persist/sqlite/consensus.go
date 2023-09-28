@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"gitlab.com/NebulousLabs/encoding"
-	"go.sia.tech/contract-revenue/stats"
 	"go.sia.tech/core/types"
+	"go.sia.tech/host-revenue-api/stats"
 	"go.sia.tech/siad/modules"
 	stypes "go.sia.tech/siad/types"
 	"go.uber.org/zap"

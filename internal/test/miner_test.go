@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"go.sia.tech/contract-revenue/internal/chain"
 	"go.sia.tech/core/types"
+	"go.sia.tech/host-revenue-api/internal/chain"
 	"go.sia.tech/siad/modules"
 	mconsensus "go.sia.tech/siad/modules/consensus"
 	"go.sia.tech/siad/modules/gateway"

@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"gitlab.com/NebulousLabs/encoding"
-	"go.sia.tech/contract-revenue/build"
 	"go.sia.tech/core/consensus"
 	"go.sia.tech/core/types"
+	"go.sia.tech/host-revenue-api/build"
 	"go.sia.tech/siad/modules"
 	stypes "go.sia.tech/siad/types"
 )

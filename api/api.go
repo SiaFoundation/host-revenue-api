@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/shopspring/decimal"
-	"go.sia.tech/contract-revenue/stats"
+	"go.sia.tech/host-revenue-api/stats"
 	"go.sia.tech/jape"
 	"go.uber.org/zap"
 )

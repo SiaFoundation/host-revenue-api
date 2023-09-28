@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"go.sia.tech/contract-revenue/stats"
+	"go.sia.tech/host-revenue-api/stats"
 )
 
 func (s *Store) Metrics(timestamp time.Time) (stats stats.ContractState, err error) {

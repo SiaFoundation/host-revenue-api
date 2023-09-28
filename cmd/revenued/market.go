@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/siacentral/apisdkgo/sia"
-	"go.sia.tech/contract-revenue/build"
-	"go.sia.tech/contract-revenue/persist/sqlite"
+	"go.sia.tech/host-revenue-api/build"
+	"go.sia.tech/host-revenue-api/persist/sqlite"
 	"go.uber.org/zap"
 )
 

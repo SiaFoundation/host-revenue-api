@@ -14,9 +14,9 @@ import (
 	"syscall"
 	"time"
 
-	"go.sia.tech/contract-revenue/api"
-	"go.sia.tech/contract-revenue/persist/sqlite"
-	"go.sia.tech/contract-revenue/stats"
+	"go.sia.tech/host-revenue-api/api"
+	"go.sia.tech/host-revenue-api/persist/sqlite"
+	"go.sia.tech/host-revenue-api/stats"
 	"go.sia.tech/siad/modules/consensus"
 	"go.sia.tech/siad/modules/gateway"
 	"go.sia.tech/siad/modules/transactionpool"

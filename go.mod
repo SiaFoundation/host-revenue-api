@@ -1,4 +1,4 @@
-module go.sia.tech/contract-revenue
+module go.sia.tech/host-revenue-api
 
 go 1.20
 
