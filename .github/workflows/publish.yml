@@ -33,7 +33,7 @@ jobs:
         name: generate tags
         id: meta
         with:
-          images: ghcr.io/siafoundation/cmc-supply-api
+          images: ghcr.io/${{ github.repository }}
           tags: |
             type=ref,event=branch
             type=sha,prefix=
