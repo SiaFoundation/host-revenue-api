@@ -10,13 +10,23 @@ CREATE TABLE hourly_contract_stats (
 CREATE TABLE blocks (
 	id INTEGER PRIMARY KEY,
 	block_id BLOB UNIQUE NOT NULL,
-	height INTEGER UNIQUE NOT NULL
+	height INTEGER UNIQUE NOT NULL,
+	date_created DATETIME NOT NULL
+);
+
+CREATE TABLE market_data (
+	date_created DATETIME PRIMARY KEY,
+	usd_rate BLOB NOT NULL,
+	eur_rate BLOB NOT NULL,
+	btc_rate BLOB NOT NULL
 );
 
 CREATE TABLE active_contracts (
 	id INTEGER PRIMARY KEY,
 	block_id INTEGER NOT NULL REFERENCES blocks (id),
 	contract_id BLOB UNIQUE NOT NULL,
+	initial_valid_revenue BLOB NOT NULL,
+	initial_missed_revenue BLOB NOT NULL,
 	initial_valid_payout_value BLOB NOT NULL,
 	initial_missed_payout_value BLOB NOT NULL,
 	valid_payout_value BLOB NOT NULL,

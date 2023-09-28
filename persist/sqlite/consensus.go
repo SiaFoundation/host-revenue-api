@@ -47,25 +47,83 @@ func (s *Store) ProcessConsensusChange(cc modules.ConsensusChange) {
 			}
 			log.Debug("reverted block", zap.Stringer("blockID", blockID))
 		}
+
+		spentUtxoValues := make(map[types.SiacoinOutputID]types.Currency)
+		for _, diff := range cc.AppliedDiffs {
+			for _, scod := range diff.SiacoinOutputDiffs {
+				if scod.Direction != modules.DiffRevert {
+					continue
+				}
+				var spent types.Currency
+				convertToCore(scod.SiacoinOutput.Value, &spent)
+				spentUtxoValues[types.SiacoinOutputID(scod.ID)] = spent
+			}
+		}
+
 		height := uint64(cc.BlockHeight) - uint64(len(cc.AppliedBlocks)) + 1
 		for _, applied := range cc.AppliedBlocks {
 			blockID := types.BlockID(applied.ID())
 			timestamp := time.Unix(int64(applied.Timestamp), 0)
 			log.Debug("adding block", zap.Stringer("blockID", blockID), zap.Time("timestamp", timestamp), zap.Uint64("height", height))
-			blockDBID, err := addBlock(tx, blockID, height)
+			blockDBID, err := addBlock(tx, blockID, height, timestamp)
 			if err != nil {
 				return fmt.Errorf("failed to add block %q: %w", applied.ID(), err)
 			}
 
 			var active int
 			for _, txn := range applied.Transactions {
+				var inputs []types.Currency
+				for _, input := range txn.SiacoinInputs {
+					value, ok := spentUtxoValues[types.SiacoinOutputID(input.ParentID)]
+					if !ok {
+						log.Panic("missing spent utxo value", zap.Stringer("utxoID", input.ParentID))
+					}
+					inputs = append(inputs, value)
+				}
+
+				var outputs []types.Currency
+				for _, output := range txn.SiacoinOutputs {
+					var value types.Currency
+					convertToCore(output.Value, &value)
+					outputs = append(outputs, value)
+				}
+
+				var fees types.Currency
+				for _, fee := range txn.MinerFees {
+					var value types.Currency
+					convertToCore(fee, &value)
+					fees = fees.Add(value)
+				}
+
 				for i, fc := range txn.FileContracts {
 					fcID := types.FileContractID(txn.FileContractID(uint64(i)))
 
 					var contract types.FileContract
 					convertToCore(fc, &contract)
 
-					if err := addActiveContract(tx, fcID, contract, blockDBID); err != nil {
+					// attempt to calculate the initial revenue for renewals.
+					// This isn't guaranteed to be correct, but it's better than
+					// nothing.
+					var initialValidRevenue, initialMissedRevenue types.Currency
+					if len(contract.ValidProofOutputs) >= 2 && len(contract.MissedProofOutputs) >= 2 && len(txn.FileContracts) == 1 { // ignore weird transactions with multiple contracts
+						renterTarget := contract.ValidProofOutputs[0].Value.Add(fees)
+						hostTarget := contract.MissedProofOutputs[1].Value
+
+						hostFunds, ok := estimateHostFunds(inputs, outputs, renterTarget, hostTarget)
+						if ok {
+							v, underflow := contract.ValidHostPayout().SubWithUnderflow(hostFunds)
+							if !underflow {
+								initialValidRevenue = v
+							}
+
+							v, underflow = contract.MissedHostPayout().SubWithUnderflow(hostFunds)
+							if !underflow {
+								initialMissedRevenue = v
+							}
+						}
+					}
+
+					if err := addActiveContract(tx, fcID, contract, blockDBID, initialValidRevenue, initialMissedRevenue); err != nil {
 						return fmt.Errorf("failed to add active contract %q: %w", fcID, err)
 					}
 					log.Debug("added active contract", zap.Stringer("contractID", fcID), zap.Uint64("expirationHeight", contract.WindowEnd))
@@ -98,7 +156,7 @@ func (s *Store) ProcessConsensusChange(cc modules.ConsensusChange) {
 			}
 
 			var valid, missed int
-			var revenue, payout types.Currency
+			var totalRevenue, totalPayout types.Currency
 			if height > maturityDelay {
 				maturedHeight := height - maturityDelay
 				log.Debug("expiring contracts", zap.Uint64("maturedHeight", maturedHeight))
@@ -110,12 +168,15 @@ func (s *Store) ProcessConsensusChange(cc modules.ConsensusChange) {
 				missed = len(expiredContracts)
 
 				for _, c := range expiredContracts {
-					payout = payout.Add(c.FinalMissed)
-					v, underflow := payout.SubWithUnderflow(c.InitialMissed)
+					var revenue types.Currency
+					v, underflow := c.FinalMissed.SubWithUnderflow(c.InitialMissed) // calculate the revenue from revisions
 					if !underflow {
-						revenue = revenue.Add(v)
+						revenue = v.Add(c.InitialMissedRevenue) // add the initial revenue from a renewal
 					}
-					log.Debug("missed contract", zap.Stringer("contractID", c.ID), zap.String("payout", c.FinalMissed.ExactString()), zap.String("revenue", v.ExactString()))
+					totalRevenue = totalRevenue.Add(revenue)     // add the revenue to the total
+					totalPayout = totalPayout.Add(c.FinalMissed) // add the missed payout to the total
+
+					log.Debug("missed contract", zap.Stringer("contractID", c.ID), zap.String("payout", c.FinalMissed.ExactString()), zap.String("revenue", revenue.ExactString()))
 				}
 
 				successfulContracts, err := validContracts(tx, maturedHeight)
@@ -125,16 +186,18 @@ func (s *Store) ProcessConsensusChange(cc modules.ConsensusChange) {
 				valid = len(successfulContracts)
 
 				for _, c := range successfulContracts {
-					payout = payout.Add(c.FinalValid)
-					v, underflow := payout.SubWithUnderflow(c.InitialValid)
+					var revenue types.Currency
+					v, underflow := c.FinalValid.SubWithUnderflow(c.InitialValid) // calculate the revenue from revisions
 					if !underflow {
-						revenue = revenue.Add(v)
+						revenue = v.Add(c.InitialValidRevenue) // add the initial revenue from a renewal
 					}
-					log.Debug("valid contract", zap.Stringer("contractID", c.ID), zap.String("payout", c.FinalValid.ExactString()), zap.String("revenue", v.ExactString()))
+					totalRevenue = totalRevenue.Add(revenue)    // add the revenue to the total
+					totalPayout = totalPayout.Add(c.FinalValid) // add the valid payout to the total
+					log.Debug("valid contract", zap.Stringer("contractID", c.ID), zap.String("payout", c.FinalValid.ExactString()), zap.String("revenue", revenue.ExactString()))
 				}
 			}
 
-			if err := updateContractStats(tx, active-valid-missed, valid, missed, revenue, payout, timestamp); err != nil {
+			if err := updateContractStats(tx, active-valid-missed, valid, missed, totalRevenue, totalPayout, timestamp); err != nil {
 				return fmt.Errorf("failed to update contract stats: %w", err)
 			}
 
@@ -156,6 +219,31 @@ func (s *Store) ProcessConsensusChange(cc modules.ConsensusChange) {
 	if err != nil {
 		log.Panic("failed to process consensus change", zap.Error(err))
 	}
+}
+
+func sum(values []types.Currency) (t types.Currency) {
+	for _, v := range values {
+		t = t.Add(v)
+	}
+	return
+}
+
+func estimateHostFunds(inputs, outputs []types.Currency, renterTarget, hostTarget types.Currency) (types.Currency, bool) {
+	for i := range inputs {
+		renterInput, hostInput := sum(inputs[:i]), sum(inputs[i:])
+
+		for j := len(outputs); j >= 0; j-- {
+			renterOutput, hostOutput := sum(outputs[:j]), sum(outputs[j:])
+
+			if renterInput.Cmp(renterOutput) < 0 || hostInput.Cmp(hostOutput) < 0 {
+				continue
+			} else if renterInput.Sub(renterOutput).Cmp(renterTarget) <= 0 || hostInput.Sub(hostOutput).Cmp(hostTarget) >= 0 {
+				continue
+			}
+			return hostInput.Sub(hostOutput), true
+		}
+	}
+	return types.ZeroCurrency, false
 }
 
 func setLastChange(tx txn, ccID modules.ConsensusChangeID, height uint64) error {
@@ -197,12 +285,12 @@ func revertBlock(tx txn, blockID types.BlockID) error {
 	return err
 }
 
-func addBlock(tx txn, blockID types.BlockID, height uint64) (id int64, err error) {
-	err = tx.QueryRow(`INSERT INTO blocks (block_id, height) VALUES ($1, $2) RETURNING id`, sqlHash256(blockID), height).Scan(&id)
+func addBlock(tx txn, blockID types.BlockID, height uint64, timestamp time.Time) (id int64, err error) {
+	err = tx.QueryRow(`INSERT INTO blocks (block_id, height, date_created) VALUES ($1, $2, $3) RETURNING id`, sqlHash256(blockID), height, sqlTime(timestamp)).Scan(&id)
 	return
 }
 
-func addActiveContract(tx txn, id types.FileContractID, fc types.FileContract, blockID int64) error {
+func addActiveContract(tx txn, id types.FileContractID, fc types.FileContract, blockID int64, initialValidRevenue, initialMissedRevenue types.Currency) error {
 	var initialValid, initialMissed types.Currency
 	if len(fc.ValidProofOutputs) >= 2 {
 		initialValid = fc.ValidHostPayout()
@@ -219,8 +307,8 @@ func addActiveContract(tx txn, id types.FileContractID, fc types.FileContract, b
 		expirationHeight = int64(fc.WindowEnd)
 	}
 
-	_, err := tx.Exec(`INSERT INTO active_contracts (contract_id, block_id, valid_payout_value, missed_payout_value, initial_valid_payout_value, initial_missed_payout_value, expiration_height)
-VALUES ($1, $2, $3, $4, $5, $6, $7)`, sqlHash256(id), blockID, sqlCurrency(initialValid), sqlCurrency(initialMissed), sqlCurrency(initialValid), sqlCurrency(initialMissed), expirationHeight)
+	_, err := tx.Exec(`INSERT INTO active_contracts (contract_id, block_id, valid_payout_value, missed_payout_value, initial_valid_payout_value, initial_missed_payout_value, initial_valid_revenue, initial_missed_revenue, expiration_height)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`, sqlHash256(id), blockID, sqlCurrency(initialValid), sqlCurrency(initialMissed), sqlCurrency(initialValid), sqlCurrency(initialMissed), sqlCurrency(initialValidRevenue), sqlCurrency(initialMissedRevenue), expirationHeight)
 	return err
 }
 
@@ -276,7 +364,7 @@ func updateContractStats(tx txn, active, valid, missed int, revenue, payout type
 func missedContracts(tx txn, height uint64) (contracts []stats.Contract, err error) {
 	const query = `SELECT c.contract_id, b.block_id, c.initial_valid_payout_value,
 c.initial_missed_payout_value, c.valid_payout_value, c.missed_payout_value,
-c.expiration_height, 0
+c.initial_valid_revenue, c.initial_missed_revenue, c.expiration_height, 0
 FROM active_contracts c
 INNER JOIN blocks b ON c.block_id=b.id
 WHERE c.expiration_height <= $1 AND c.proof_block_id IS NULL`
@@ -299,7 +387,7 @@ WHERE c.expiration_height <= $1 AND c.proof_block_id IS NULL`
 func validContracts(tx txn, height uint64) (contracts []stats.Contract, err error) {
 	const query = `SELECT c.contract_id, b.block_id, c.initial_valid_payout_value,
 c.initial_missed_payout_value, c.valid_payout_value, c.missed_payout_value,
-c.expiration_height, 0
+c.initial_valid_revenue, c.initial_missed_revenue, c.expiration_height, 0
 FROM active_contracts c
 INNER JOIN blocks b ON c.block_id=b.id
 INNER JOIN blocks pb ON c.proof_block_id=pb.id
@@ -324,6 +412,7 @@ func scanContract(row scanner) (c stats.Contract, err error) {
 	err = row.Scan((*sqlHash256)(&c.ID), (*sqlHash256)(&c.BlockID),
 		(*sqlCurrency)(&c.InitialValid), (*sqlCurrency)(&c.InitialMissed),
 		(*sqlCurrency)(&c.FinalValid), (*sqlCurrency)(&c.FinalMissed),
+		(*sqlCurrency)(&c.InitialValidRevenue), (*sqlCurrency)(&c.InitialMissedRevenue),
 		&c.ExpirationHeight, &c.ProofHeight)
 	return
 }

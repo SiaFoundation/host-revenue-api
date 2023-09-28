@@ -1,6 +1,8 @@
 package sqlite
 
 import (
+	"database/sql"
+	"errors"
 	"time"
 
 	"go.sia.tech/contract-revenue/stats"
@@ -10,7 +12,7 @@ func (s *Store) Metrics(timestamp time.Time) (stats stats.ContractState, err err
 	err = s.transaction(func(tx txn) error {
 		const query = `SELECT active_contracts, valid_contracts, missed_contracts, total_payouts, estimated_revenue
 FROM hourly_contract_stats 
-WHERE date_created <=$1 
+WHERE date_created <= $1 
 ORDER BY date_created DESC 
 LIMIT 1`
 		stats.Timestamp = timestamp
@@ -20,6 +22,7 @@ LIMIT 1`
 }
 
 func (s *Store) Periods(start, end time.Time, period string) (state []stats.ContractState, err error) {
+	values := make(map[int64]stats.ContractState)
 	err = s.transaction(func(tx txn) error {
 		const query = `SELECT active_contracts, valid_contracts, missed_contracts, total_payouts, estimated_revenue, date_created
 FROM hourly_contract_stats
@@ -39,13 +42,55 @@ ORDER BY date_created ASC`
 			}
 
 			stat.Timestamp = stats.NormalizePeriod(stat.Timestamp, period)
-			if len(state) == 0 || state[len(state)-1].Timestamp == stat.Timestamp {
-				state = append(state, stat)
-			} else {
-				state[len(state)-1] = stat
+			values[stat.Timestamp.Unix()] = stat
+		}
+
+		stmt, err := tx.Prepare(`SELECT usd_rate, eur_rate, btc_rate FROM market_data ORDER BY ABS(date_created - $1) LIMIT 1`)
+		if err != nil {
+			return err
+		}
+		defer stmt.Close()
+
+		for _, stat := range values {
+			err := stmt.QueryRow(sqlTime(stat.Timestamp)).Scan(&stat.ExchangeRates.USD, &stat.ExchangeRates.EUR, &stat.ExchangeRates.BTC)
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
+				return err
 			}
 		}
+
 		return nil
 	})
+
+	// build the empty array
+	for t := start; t.Before(end); t = nextPeriod(t, period) {
+		state = append(state, stats.ContractState{Timestamp: t})
+	}
+
+	// fill in the values from the database
+	prev := state[0]
+	for i := range state {
+		timestamp := state[i].Timestamp
+		v, ok := values[timestamp.Unix()]
+		if !ok {
+			v = prev
+		}
+		v.Timestamp = timestamp
+		state[i], prev = v, v
+	}
 	return
+}
+
+func nextPeriod(timestamp time.Time, period string) time.Time {
+	switch period {
+	case stats.PeriodHourly:
+		return timestamp.Add(time.Hour)
+	case stats.PeriodDaily:
+		return timestamp.AddDate(0, 0, 1)
+	case stats.PeriodWeekly:
+		return timestamp.AddDate(0, 0, 7)
+	case stats.PeriodMonthly:
+		return timestamp.AddDate(0, 1, 0)
+	default:
+		panic("invalid period")
+	}
 }

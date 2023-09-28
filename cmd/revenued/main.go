@@ -156,13 +156,15 @@ func main() {
 	}
 	defer db.Close()
 
+	go syncMarketData(ctx, db, log.Named("marketSync"))
+
 	lastChange, err := db.LastChange()
 	if err != nil {
 		log.Panic("failed to get last change", zap.Error(err))
 	}
 
 	go func() {
-		if err := cs.ConsensusSetSubscribe(db, lastChange, ctx.Done()); err != nil {
+		if err := cs.ConsensusSetSubscribe(db, lastChange, ctx.Done()); err != nil && !strings.Contains(err.Error(), "ThreadGroup already stopped") {
 			log.Panic("failed to subscribe to consensus set", zap.Error(err))
 		}
 	}()
