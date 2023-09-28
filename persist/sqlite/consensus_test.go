@@ -127,10 +127,10 @@ func TestIndexing(t *testing.T) {
 		t.Fatal("expected 0 missed contracts, got", stats.Missed)
 	} else if stats.Valid != 0 {
 		t.Fatal("expected 0 valid contracts, got", stats.Valid)
-	} else if !stats.Payout.IsZero() {
-		t.Fatal("expected payout to be zero, got", stats.Payout)
-	} else if !stats.Revenue.IsZero() {
-		t.Fatal("expected revenue to be zero, got", stats.Revenue)
+	} else if !stats.Payout.SC.IsZero() {
+		t.Fatal("expected payout to be zero, got", stats.Payout.SC)
+	} else if !stats.Revenue.SC.IsZero() {
+		t.Fatal("expected revenue to be zero, got", stats.Revenue.SC)
 	}
 
 	// add a second contract
@@ -171,10 +171,10 @@ func TestIndexing(t *testing.T) {
 		t.Fatal("expected 0 missed contracts, got", stats.Missed)
 	} else if stats.Valid != 0 {
 		t.Fatal("expected 0 valid contracts, got", stats.Valid)
-	} else if !stats.Payout.IsZero() {
-		t.Fatal("expected payout to be zero, got", stats.Payout)
-	} else if !stats.Revenue.IsZero() {
-		t.Fatal("expected revenue to be zero, got", stats.Revenue)
+	} else if !stats.Payout.SC.IsZero() {
+		t.Fatal("expected payout to be zero, got", stats.Payout.SC)
+	} else if !stats.Revenue.SC.IsZero() {
+		t.Fatal("expected revenue to be zero, got", stats.Revenue.SC)
 	}
 
 	// submit a revision transferring some of the renter funds from the second contract to the host
@@ -248,10 +248,10 @@ func TestIndexing(t *testing.T) {
 		t.Fatal("expected 1 missed contracts, got", stats.Missed)
 	} else if stats.Valid != 0 {
 		t.Fatal("expected 0 valid contracts, got", stats.Valid)
-	} else if !stats.Payout.Equals(expectedPayout) {
-		t.Fatalf("expected payout to be %d, got %d", expectedPayout, stats.Payout)
-	} else if !stats.Revenue.IsZero() {
-		t.Fatal("expected revenue to be zero, got", stats.Revenue)
+	} else if !stats.Payout.SC.Equals(expectedPayout) {
+		t.Fatalf("expected payout to be %d, got %d", expectedPayout, stats.Payout.SC)
+	} else if !stats.Revenue.SC.IsZero() {
+		t.Fatal("expected revenue to be zero, got", stats.Revenue.SC)
 	}
 
 	// mine until the second contract expires
@@ -272,10 +272,10 @@ func TestIndexing(t *testing.T) {
 		t.Fatal("expected 2 missed contracts, got", stats.Missed)
 	} else if stats.Valid != 0 {
 		t.Fatal("expected 0 valid contracts, got", stats.Valid)
-	} else if !stats.Payout.Equals(expectedPayout) {
-		t.Fatalf("expected payout to be %d, got %d", expectedPayout, stats.Payout)
-	} else if !stats.Revenue.IsZero() {
-		t.Fatal("expected revenue to be zero, got", stats.Revenue)
+	} else if !stats.Payout.SC.Equals(expectedPayout) {
+		t.Fatalf("expected payout to be %d, got %d", expectedPayout, stats.Payout.SC)
+	} else if !stats.Revenue.SC.IsZero() {
+		t.Fatal("expected revenue to be zero, got", stats.Revenue.SC)
 	}
 
 	// add a third contract
@@ -317,10 +317,10 @@ func TestIndexing(t *testing.T) {
 		t.Fatal("expected 2 missed contracts, got", stats.Missed)
 	} else if stats.Valid != 0 {
 		t.Fatal("expected 0 valid contracts, got", stats.Valid)
-	} else if !stats.Payout.Equals(expectedPayout) {
-		t.Fatalf("expected payout to be %d, got %d", expectedPayout, stats.Payout)
-	} else if !stats.Revenue.IsZero() {
-		t.Fatal("expected revenue to be zero, got", stats.Revenue)
+	} else if !stats.Payout.SC.Equals(expectedPayout) {
+		t.Fatalf("expected payout to be %d, got %d", expectedPayout, stats.Payout.SC)
+	} else if !stats.Revenue.SC.IsZero() {
+		t.Fatal("expected revenue to be zero, got", stats.Revenue.SC)
 	}
 
 	// submit a revision transferring some of the renter funds from the second contract to the host
@@ -414,10 +414,10 @@ func TestIndexing(t *testing.T) {
 		t.Fatal("expected 2 missed contracts, got", stats.Missed)
 	} else if stats.Valid != 1 {
 		t.Fatal("expected 1 valid contract, got", stats.Valid)
-	} else if !stats.Payout.Equals(expectedPayout) {
-		t.Fatalf("expected payout to be %d, got %d", expectedPayout, stats.Payout)
-	} else if !stats.Revenue.Equals(expectedRevenue) {
-		t.Fatalf("expected revenue to be %d, got %d", expectedRevenue, stats.Revenue)
+	} else if !stats.Payout.SC.Equals(expectedPayout) {
+		t.Fatalf("expected payout to be %d, got %d", expectedPayout, stats.Payout.SC)
+	} else if !stats.Revenue.SC.Equals(expectedRevenue) {
+		t.Fatalf("expected revenue to be %d, got %d", expectedRevenue, stats.Revenue.SC)
 	}
 
 }

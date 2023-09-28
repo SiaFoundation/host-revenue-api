@@ -3,8 +3,14 @@ CREATE TABLE hourly_contract_stats (
 	active_contracts INTEGER NOT NULL,
 	valid_contracts INTEGER NOT NULL,
 	missed_contracts INTEGER NOT NULL,
-	total_payouts BLOB NOT NULL,
-	estimated_revenue BLOB NOT NULL
+	total_payouts_sc BLOB NOT NULL,
+	total_payouts_usd FLOAT NOT NULL,
+	total_payouts_eur FLOAT NOT NULL,
+	total_payouts_btc FLOAT NOT NULL,
+	estimated_revenue_sc BLOB NOT NULL,
+	estimated_revenue_usd FLOAT NOT NULL,
+	estimated_revenue_eur FLOAT NOT NULL,
+	estimated_revenue_btc FLOAT NOT NULL
 );
 
 CREATE TABLE blocks (

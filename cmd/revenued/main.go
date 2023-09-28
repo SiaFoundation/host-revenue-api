@@ -156,25 +156,13 @@ func main() {
 	}
 	defer db.Close()
 
-	go syncMarketData(ctx, db, log.Named("marketSync"))
-
-	lastChange, err := db.LastChange()
-	if err != nil {
-		log.Panic("failed to get last change", zap.Error(err))
-	}
-
-	go func() {
-		if err := cs.ConsensusSetSubscribe(db, lastChange, ctx.Done()); err != nil && !strings.Contains(err.Error(), "ThreadGroup already stopped") {
-			log.Panic("failed to subscribe to consensus set", zap.Error(err))
-		}
-	}()
-
-	// create a subscriber
+	// create the stats provider
 	sp, err := stats.NewProvider(db, log.Named("stats"))
 	if err != nil {
 		log.Panic("failed to create stats provider", zap.Error(err))
 	}
 
+	// start the API
 	api := http.Server{
 		Handler:     api.NewServer(sp, log.Named("api")),
 		ReadTimeout: 30 * time.Second,
@@ -185,6 +173,21 @@ func main() {
 		err := api.Serve(apiListener)
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Panic("failed to serve api", zap.Error(err))
+		}
+	}()
+
+	// sync market data
+	syncMarketData(ctx, db, log.Named("marketSync"))
+
+	// subscribe the database to the consensus set to begin indexing
+	lastChange, err := db.LastChange()
+	if err != nil {
+		log.Panic("failed to get last change", zap.Error(err))
+	}
+
+	go func() {
+		if err := cs.ConsensusSetSubscribe(db, lastChange, ctx.Done()); err != nil && !strings.Contains(err.Error(), "ThreadGroup already stopped") {
+			log.Panic("failed to subscribe to consensus set", zap.Error(err))
 		}
 	}()
 

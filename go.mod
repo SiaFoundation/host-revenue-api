@@ -5,7 +5,7 @@ go 1.21
 require (
 	github.com/mattn/go-sqlite3 v1.14.17
 	github.com/shopspring/decimal v1.3.1
-	github.com/siacentral/apisdkgo v0.2.9
+	github.com/siacentral/apisdkgo v0.2.10
 	gitlab.com/NebulousLabs/encoding v0.0.0-20200604091946-456c3dc907fe
 	go.sia.tech/core v0.1.12-0.20230807160906-ad76cac3058f
 	go.sia.tech/jape v0.9.1-0.20230525021720-ecf031ecbffb

@@ -29,20 +29,20 @@ type (
 		ExpirationHeight     uint64
 	}
 
-	ExchangeRates struct {
-		USD float64 `json:"usd"`
-		EUR float64 `json:"eur"`
-		BTC float64 `json:"btc"`
+	Values struct {
+		SC  types.Currency `json:"sc"`
+		USD float64        `json:"usd"`
+		EUR float64        `json:"eur"`
+		BTC float64        `json:"btc"`
 	}
 
 	ContractState struct {
-		Active        int            `json:"active"`
-		Valid         int            `json:"valid"`
-		Missed        int            `json:"missed"`
-		Revenue       types.Currency `json:"revenue"`
-		Payout        types.Currency `json:"payout"`
-		ExchangeRates ExchangeRates  `json:"exchangeRates"`
-		Timestamp     time.Time      `json:"timestamp"`
+		Active    int       `json:"active"`
+		Valid     int       `json:"valid"`
+		Missed    int       `json:"missed"`
+		Revenue   Values    `json:"revenue"`
+		Payout    Values    `json:"payout"`
+		Timestamp time.Time `json:"timestamp"`
 	}
 
 	Store interface {

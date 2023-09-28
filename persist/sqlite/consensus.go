@@ -8,6 +8,7 @@ import (
 	"math"
 	"time"
 
+	"github.com/shopspring/decimal"
 	"gitlab.com/NebulousLabs/encoding"
 	"go.sia.tech/core/types"
 	"go.sia.tech/host-revenue-api/stats"
@@ -28,6 +29,16 @@ func (s *Store) LastChange() (ccID modules.ConsensusChangeID, err error) {
 		return modules.ConsensusChangeBeginning, nil
 	} else if err == nil && !value.Valid {
 		return modules.ConsensusChangeBeginning, nil
+	}
+	return
+}
+
+func getExchangeRate(tx txn, timestamp time.Time) (usd, eur, btc float64, err error) {
+	err = tx.QueryRow(`SELECT usd_rate, eur_rate, btc_rate FROM market_data ORDER BY ABS(date_created - $1) LIMIT 1`, sqlTime(timestamp)).Scan(&usd, &eur, &btc)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, 0, 0, errors.New("no exchange rate data")
+	} else if err != nil {
+		return 0, 0, 0, err
 	}
 	return
 }
@@ -68,6 +79,11 @@ func (s *Store) ProcessConsensusChange(cc modules.ConsensusChange) {
 			blockDBID, err := addBlock(tx, blockID, height, timestamp)
 			if err != nil {
 				return fmt.Errorf("failed to add block %q: %w", applied.ID(), err)
+			}
+
+			usdRate, eurRate, btcRate, err := getExchangeRate(tx, timestamp)
+			if err != nil {
+				return fmt.Errorf("failed to get exchange rate: %w", err)
 			}
 
 			var active int
@@ -156,7 +172,7 @@ func (s *Store) ProcessConsensusChange(cc modules.ConsensusChange) {
 			}
 
 			var valid, missed int
-			var totalRevenue, totalPayout types.Currency
+			var totalRevenue, totalPayout stats.Values
 			if height > maturityDelay {
 				maturedHeight := height - maturityDelay
 				log.Debug("expiring contracts", zap.Uint64("maturedHeight", maturedHeight))
@@ -168,15 +184,35 @@ func (s *Store) ProcessConsensusChange(cc modules.ConsensusChange) {
 				missed = len(expiredContracts)
 
 				for _, c := range expiredContracts {
-					var revenue types.Currency
+					var revenue stats.Values
 					v, underflow := c.FinalMissed.SubWithUnderflow(c.InitialMissed) // calculate the revenue from revisions
 					if !underflow {
-						revenue = v.Add(c.InitialMissedRevenue) // add the initial revenue from a renewal
+						revenue.SC = v.Add(c.InitialMissedRevenue) // add the initial revenue from a renewal
+						sc := decimal.NewFromBigInt(revenue.SC.Big(), -24)
+						revenue.USD = sc.Mul(decimal.NewFromFloat(usdRate)).InexactFloat64()
+						revenue.EUR = sc.Mul(decimal.NewFromFloat(eurRate)).InexactFloat64()
+						revenue.BTC = sc.Mul(decimal.NewFromFloat(btcRate)).InexactFloat64()
 					}
-					totalRevenue = totalRevenue.Add(revenue)     // add the revenue to the total
-					totalPayout = totalPayout.Add(c.FinalMissed) // add the missed payout to the total
 
-					log.Debug("missed contract", zap.Stringer("contractID", c.ID), zap.String("payout", c.FinalMissed.ExactString()), zap.String("revenue", revenue.ExactString()))
+					// add the revenue to the total
+					totalRevenue.SC = totalRevenue.SC.Add(revenue.SC)
+					totalRevenue.USD += revenue.USD
+					totalRevenue.EUR += revenue.EUR
+					totalRevenue.BTC += revenue.BTC
+					// add the missed payout to the total
+					var payout stats.Values
+					payout.SC = c.FinalValid
+					sc := decimal.NewFromBigInt(payout.SC.Big(), -24)
+					payout.USD = sc.Mul(decimal.NewFromFloat(usdRate)).InexactFloat64()
+					payout.EUR = sc.Mul(decimal.NewFromFloat(eurRate)).InexactFloat64()
+					payout.BTC = sc.Mul(decimal.NewFromFloat(btcRate)).InexactFloat64()
+
+					totalPayout.SC = totalPayout.SC.Add(payout.SC)
+					totalPayout.USD += payout.USD
+					totalPayout.EUR += payout.EUR
+					totalPayout.BTC += payout.BTC
+
+					log.Debug("missed contract", zap.Stringer("contractID", c.ID), zap.String("payout", c.FinalMissed.ExactString()), zap.String("revenue", revenue.SC.ExactString()), zap.Float64("revenueUSD", revenue.USD), zap.Float64("exchangeRateUSD", usdRate))
 				}
 
 				successfulContracts, err := validContracts(tx, maturedHeight)
@@ -186,14 +222,35 @@ func (s *Store) ProcessConsensusChange(cc modules.ConsensusChange) {
 				valid = len(successfulContracts)
 
 				for _, c := range successfulContracts {
-					var revenue types.Currency
+					var revenue stats.Values
 					v, underflow := c.FinalValid.SubWithUnderflow(c.InitialValid) // calculate the revenue from revisions
 					if !underflow {
-						revenue = v.Add(c.InitialValidRevenue) // add the initial revenue from a renewal
+						revenue.SC = v.Add(c.InitialValidRevenue) // add the initial revenue from a renewal
+						sc := decimal.NewFromBigInt(revenue.SC.Big(), -24)
+						revenue.USD = sc.Mul(decimal.NewFromFloat(usdRate)).InexactFloat64()
+						revenue.EUR = sc.Mul(decimal.NewFromFloat(eurRate)).InexactFloat64()
+
 					}
-					totalRevenue = totalRevenue.Add(revenue)    // add the revenue to the total
-					totalPayout = totalPayout.Add(c.FinalValid) // add the valid payout to the total
-					log.Debug("valid contract", zap.Stringer("contractID", c.ID), zap.String("payout", c.FinalValid.ExactString()), zap.String("revenue", revenue.ExactString()))
+					// add the revenue to the total
+					totalRevenue.SC = totalRevenue.SC.Add(revenue.SC)
+					totalRevenue.USD += revenue.USD
+					totalRevenue.EUR += revenue.EUR
+					totalRevenue.BTC += revenue.BTC
+
+					// add the valid payout to the total
+					var payout stats.Values
+					payout.SC = c.FinalValid
+					sc := decimal.NewFromBigInt(payout.SC.Big(), -24)
+					payout.USD = sc.Mul(decimal.NewFromFloat(usdRate)).InexactFloat64()
+					payout.EUR = sc.Mul(decimal.NewFromFloat(eurRate)).InexactFloat64()
+					payout.BTC = sc.Mul(decimal.NewFromFloat(btcRate)).InexactFloat64()
+
+					totalPayout.SC = totalPayout.SC.Add(payout.SC)
+					totalPayout.USD += payout.USD
+					totalPayout.EUR += payout.EUR
+					totalPayout.BTC += payout.BTC
+
+					log.Debug("valid contract", zap.Stringer("contractID", c.ID), zap.String("payout", c.FinalValid.ExactString()), zap.String("revenue", revenue.SC.ExactString()), zap.Float64("revenueUSD", revenue.USD), zap.Float64("exchangeRateUSD", usdRate))
 				}
 			}
 
@@ -323,41 +380,47 @@ func proveContract(tx txn, id types.FileContractID, blockID int64) error {
 	return err
 }
 
-func updateContractStats(tx txn, active, valid, missed int, revenue, payout types.Currency, timestamp time.Time) error {
-	if active == 0 && valid == 0 && missed == 0 && revenue.IsZero() && payout.IsZero() {
+func updateContractStats(tx txn, active, valid, missed int, revenue, payout stats.Values, timestamp time.Time) error {
+	if active == 0 && valid == 0 && missed == 0 {
 		return nil
 	}
 
-	timestamp = timestamp.Truncate(time.Hour)
-	const query = `SELECT active_contracts, valid_contracts, missed_contracts, total_payouts, estimated_revenue FROM hourly_contract_stats WHERE date_created <= $1 ORDER BY date_created DESC LIMIT 1`
-	var totalActive, totalValid, totalMissed int
-	var totalRevenue, totalPayout types.Currency
-
-	err := tx.QueryRow(query, timestamp).Scan(&totalActive, &totalValid, &totalMissed, (*sqlCurrency)(&totalPayout), (*sqlCurrency)(&totalRevenue))
+	state, err := getMetrics(tx, timestamp)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("failed to get contract stats: %w", err)
 	}
 
-	totalActive += active
-	totalValid += valid
-	totalMissed += missed
+	state.Active += active
+	state.Valid += valid
+	state.Missed += missed
+	state.Revenue.SC = state.Revenue.SC.Add(revenue.SC)
+	state.Revenue.USD += revenue.USD
+	state.Revenue.EUR += revenue.EUR
+	state.Revenue.BTC += revenue.BTC
 
-	if totalActive < 0 {
-		return fmt.Errorf("invalid active contract count: %d", totalActive)
-	} else if totalValid < 0 {
-		return fmt.Errorf("invalid valid contract count: %d", totalValid)
-	} else if totalMissed < 0 {
-		return fmt.Errorf("invalid missed contract count: %d", totalMissed)
+	state.Payout.SC = state.Payout.SC.Add(payout.SC)
+	state.Payout.USD += payout.USD
+	state.Payout.EUR += payout.EUR
+	state.Payout.BTC += payout.BTC
+
+	if state.Active < 0 {
+		return fmt.Errorf("invalid active contract count: %d", state.Active)
+	} else if state.Valid < 0 {
+		return fmt.Errorf("invalid valid contract count: %d", state.Valid)
+	} else if state.Missed < 0 {
+		return fmt.Errorf("invalid missed contract count: %d", state.Missed)
 	}
 
-	totalRevenue = totalRevenue.Add(revenue)
-	totalPayout = totalPayout.Add(payout)
-
 	const upsertQuery = `INSERT INTO hourly_contract_stats (date_created, active_contracts, 
-		valid_contracts, missed_contracts, total_payouts, estimated_revenue) VALUES ($1, $2, $3, $4, $5, $6)
-		ON CONFLICT (date_created) DO UPDATE SET active_contracts=$2, valid_contracts=$3, missed_contracts=$4, total_payouts=$5, estimated_revenue=$6`
+valid_contracts, missed_contracts, total_payouts_sc, total_payouts_usd, total_payouts_eur, total_payouts_btc,
+estimated_revenue_sc, estimated_revenue_usd, estimated_revenue_eur, estimated_revenue_btc) 
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,  $11, $12)
+ON CONFLICT (date_created) DO UPDATE SET active_contracts=EXCLUDED.active_contracts, valid_contracts=EXCLUDED.valid_contracts,
+missed_contracts=EXCLUDED.missed_contracts, total_payouts_sc=EXCLUDED.total_payouts_sc, total_payouts_usd=EXCLUDED.total_payouts_usd,
+total_payouts_eur=EXCLUDED.total_payouts_eur, total_payouts_btc=EXCLUDED.total_payouts_btc, estimated_revenue_sc=EXCLUDED.estimated_revenue_sc,
+estimated_revenue_usd=EXCLUDED.estimated_revenue_usd, estimated_revenue_eur=EXCLUDED.estimated_revenue_eur, estimated_revenue_btc=EXCLUDED.estimated_revenue_btc`
 
-	_, err = tx.Exec(upsertQuery, sqlTime(timestamp), totalActive, totalValid, totalMissed, sqlCurrency(totalPayout), sqlCurrency(totalRevenue))
+	_, err = tx.Exec(upsertQuery, sqlTime(timestamp), state.Active, state.Valid, state.Missed, sqlCurrency(state.Payout.SC), state.Payout.USD, state.Payout.EUR, state.Payout.BTC, sqlCurrency(state.Revenue.SC), state.Revenue.USD, state.Revenue.EUR, state.Revenue.BTC)
 	return err
 }
 

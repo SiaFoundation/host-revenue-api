@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/shopspring/decimal"
 	"go.sia.tech/host-revenue-api/stats"
 	"go.sia.tech/jape"
 	"go.uber.org/zap"
@@ -106,7 +105,7 @@ func (a *api) handleGetWeb3Index(c jape.Context) {
 		c.Error(err, http.StatusInternalServerError)
 		return
 	}
-	resp.Revenue.Now = decimal.NewFromBigInt(revenue.Revenue.Big(), -24).Mul(decimal.NewFromFloat(revenue.ExchangeRates.USD)).InexactFloat64()
+	resp.Revenue.Now = revenue.Revenue.USD
 
 	oneDayAgo := now.AddDate(0, 0, -1)
 	revenue, err = a.sp.Metrics(oneDayAgo)
@@ -114,7 +113,7 @@ func (a *api) handleGetWeb3Index(c jape.Context) {
 		c.Error(err, http.StatusInternalServerError)
 		return
 	}
-	resp.Revenue.OneDayAgo = decimal.NewFromBigInt(revenue.Revenue.Big(), -24).Mul(decimal.NewFromFloat(revenue.ExchangeRates.USD)).InexactFloat64()
+	resp.Revenue.OneDayAgo = revenue.Revenue.USD
 
 	twoDaysAgo := now.AddDate(0, 0, -2)
 	revenue, err = a.sp.Metrics(twoDaysAgo)
@@ -122,7 +121,7 @@ func (a *api) handleGetWeb3Index(c jape.Context) {
 		c.Error(err, http.StatusInternalServerError)
 		return
 	}
-	resp.Revenue.TwoDaysAgo = decimal.NewFromBigInt(revenue.Revenue.Big(), -24).Mul(decimal.NewFromFloat(revenue.ExchangeRates.USD)).InexactFloat64()
+	resp.Revenue.TwoDaysAgo = revenue.Revenue.USD
 
 	oneWeekAgo := now.AddDate(0, 0, -7)
 	revenue, err = a.sp.Metrics(oneWeekAgo)
@@ -130,7 +129,7 @@ func (a *api) handleGetWeb3Index(c jape.Context) {
 		c.Error(err, http.StatusInternalServerError)
 		return
 	}
-	resp.Revenue.OneWeekAgo = decimal.NewFromBigInt(revenue.Revenue.Big(), -24).Mul(decimal.NewFromFloat(revenue.ExchangeRates.USD)).InexactFloat64()
+	resp.Revenue.OneWeekAgo = revenue.Revenue.USD
 
 	twoWeeksAgo := now.AddDate(0, 0, -14)
 	revenue, err = a.sp.Metrics(twoWeeksAgo)
@@ -138,7 +137,7 @@ func (a *api) handleGetWeb3Index(c jape.Context) {
 		c.Error(err, http.StatusInternalServerError)
 		return
 	}
-	resp.Revenue.TwoWeeksAgo = decimal.NewFromBigInt(revenue.Revenue.Big(), -24).Mul(decimal.NewFromFloat(revenue.ExchangeRates.USD)).InexactFloat64()
+	resp.Revenue.TwoWeeksAgo = revenue.Revenue.USD
 
 	thirtyDaysAgo := now.AddDate(0, 0, -30)
 	revenue, err = a.sp.Metrics(thirtyDaysAgo)
@@ -146,7 +145,7 @@ func (a *api) handleGetWeb3Index(c jape.Context) {
 		c.Error(err, http.StatusInternalServerError)
 		return
 	}
-	resp.Revenue.ThirtyDaysAgo = decimal.NewFromBigInt(revenue.Revenue.Big(), -24).Mul(decimal.NewFromFloat(revenue.ExchangeRates.USD)).InexactFloat64()
+	resp.Revenue.ThirtyDaysAgo = revenue.Revenue.USD
 
 	sixtyDaysAgo := now.AddDate(0, 0, -60)
 	revenue, err = a.sp.Metrics(sixtyDaysAgo)
@@ -154,7 +153,7 @@ func (a *api) handleGetWeb3Index(c jape.Context) {
 		c.Error(err, http.StatusInternalServerError)
 		return
 	}
-	resp.Revenue.SixtyDaysAgo = decimal.NewFromBigInt(revenue.Revenue.Big(), -24).Mul(decimal.NewFromFloat(revenue.ExchangeRates.USD)).InexactFloat64()
+	resp.Revenue.SixtyDaysAgo = revenue.Revenue.USD
 
 	ninetyDaysAgo := now.AddDate(0, 0, -90)
 	revenue, err = a.sp.Metrics(ninetyDaysAgo)
@@ -162,7 +161,7 @@ func (a *api) handleGetWeb3Index(c jape.Context) {
 		c.Error(err, http.StatusInternalServerError)
 		return
 	}
-	resp.Revenue.NinetyDaysAgo = decimal.NewFromBigInt(revenue.Revenue.Big(), -24).Mul(decimal.NewFromFloat(revenue.ExchangeRates.USD)).InexactFloat64()
+	resp.Revenue.NinetyDaysAgo = revenue.Revenue.USD
 
 	y, m, _ := now.Date()
 	start := time.Date(y-2, m, 1, 0, 0, 0, 0, now.Location())
@@ -173,11 +172,10 @@ func (a *api) handleGetWeb3Index(c jape.Context) {
 		return
 	}
 
-	for i := 0; i < len(days); i++ {
-		rev := decimal.NewFromBigInt(days[i].Revenue.Big(), -24).Mul(decimal.NewFromFloat(days[i].ExchangeRates.USD)).InexactFloat64()
+	for _, day := range days {
 		resp.Days = append(resp.Days, Web3IndexDay{
-			Date:    days[i].Timestamp.Unix(),
-			Revenue: rev,
+			Date:    day.Timestamp.Unix(),
+			Revenue: day.Revenue.USD,
 		})
 	}
 	c.Encode(resp)
