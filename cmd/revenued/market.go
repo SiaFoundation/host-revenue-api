@@ -61,9 +61,9 @@ func syncMarketData(ctx context.Context, store *sqlite.Store, log *zap.Logger) {
 				}
 
 				if err := store.AddMarketData(rate.Rates["usd"].InexactFloat64(), rate.Rates["eur"].InexactFloat64(), rate.Rates["btc"].InexactFloat64(), rate.Timestamp); err != nil {
-					log.Warn("failed to add market data", zap.Error(err), zap.Time("timestamp", timestamp))
+					log.Warn("failed to add market data", zap.Error(err), zap.Time("timestamp", rate.Timestamp))
 				} else {
-					log.Info("added market data", zap.Time("timestamp", timestamp))
+					log.Info("added market data", zap.Time("timestamp", rate.Timestamp))
 				}
 			}
 
