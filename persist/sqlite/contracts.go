@@ -45,6 +45,8 @@ date_created
 FROM hourly_contract_stats
 WHERE date_created BETWEEN $1 AND $2
 ORDER BY date_created ASC`
+		start = stats.NormalizePeriod(start, period)
+		end = stats.NormalizePeriod(end, period)
 
 		rows, err := tx.Query(query, sqlTime(start), sqlTime(end))
 		if err != nil {
@@ -58,27 +60,21 @@ ORDER BY date_created ASC`
 				return fmt.Errorf("failed to scan contract state: %w", err)
 			}
 
-			state.Timestamp = stats.NormalizePeriod(state.Timestamp, period)
+			state.Timestamp = stats.NormalizePeriod(state.Timestamp.In(start.Location()), period)
 			values[state.Timestamp.Unix()] = state
 		}
 		return nil
 	})
 
-	// build the empty array
+	// build the array
+	var prev stats.ContractState
 	for t := start; t.Before(end); t = nextPeriod(t, period) {
-		state = append(state, stats.ContractState{Timestamp: t})
-	}
-
-	// fill in the values from the database
-	prev := state[0]
-	for i := range state {
-		timestamp := state[i].Timestamp
-		v, ok := values[timestamp.Unix()]
+		v, ok := values[t.Unix()]
 		if !ok {
 			v = prev
 		}
-		v.Timestamp = timestamp
-		state[i], prev = v, v
+		v.Timestamp = t
+		state = append(state, v)
 	}
 	return
 }
