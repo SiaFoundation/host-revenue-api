@@ -286,12 +286,21 @@ func sum(values []types.Currency) (t types.Currency) {
 }
 
 func estimateHostFunds(inputs, outputs []types.Currency, renterTarget, hostTarget types.Currency) (types.Currency, bool) {
+	// this is naive, but it attempts to separate the renter and host inputs
+	// and outputs using the estimated funding amounts for each party as a
+	// guide.
 	for i := range inputs {
 		renterInput, hostInput := sum(inputs[:i]), sum(inputs[i:])
 
 		for j := len(outputs); j >= 0; j-- {
 			renterOutput, hostOutput := sum(outputs[:j]), sum(outputs[j:])
 
+			// SUM(renter inputs) - SUM(renter outputs) should be greater than
+			// the miner fees + renter valid payout since the renter also pays
+			// the contract fee + initial revenue to the host payout
+			//
+			// SUM(host inputs) - SUM(host outputs) should be less than the host
+			// missed payout since the renter includes the contract fee.
 			if renterInput.Cmp(renterOutput) < 0 || hostInput.Cmp(hostOutput) < 0 {
 				continue
 			} else if renterInput.Sub(renterOutput).Cmp(renterTarget) <= 0 || hostInput.Sub(hostOutput).Cmp(hostTarget) >= 0 {
