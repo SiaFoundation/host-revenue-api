@@ -165,7 +165,7 @@ func (a *api) handleGetWeb3Index(c jape.Context) {
 
 	start := now.AddDate(-1, 0, 0)
 	start = start.AddDate(0, 0, -int(start.Weekday()+1))
-	end := now.AddDate(0, 0, int(7-now.Weekday()))
+	end := now.AddDate(0, 0, 1)
 
 	days, err := a.sp.Periods(start, end, stats.PeriodDaily)
 	if err != nil {
@@ -175,9 +175,6 @@ func (a *api) handleGetWeb3Index(c jape.Context) {
 
 	for i := len(days) - 1; i > 0; i-- {
 		current, prev := days[i], days[i-1]
-		if current.Timestamp.After(time.Now()) {
-			continue
-		}
 		resp.Days = append(resp.Days, Web3IndexDay{
 			Date:    current.Timestamp.Unix(),
 			Revenue: current.Revenue.USD - prev.Revenue.USD,
