@@ -22,7 +22,7 @@ WHERE date_created <= $1
 ORDER BY date_created DESC 
 LIMIT 1`
 
-	row := tx.QueryRow(query, timestamp)
+	row := tx.QueryRow(query, sqlTime(timestamp))
 	state, err := scanContractState(row)
 	return state, err
 }
@@ -46,7 +46,7 @@ FROM hourly_contract_stats
 WHERE date_created BETWEEN $1 AND $2
 ORDER BY date_created ASC`
 
-		rows, err := tx.Query(query, start, end)
+		rows, err := tx.Query(query, sqlTime(start), sqlTime(end))
 		if err != nil {
 			return err
 		}
