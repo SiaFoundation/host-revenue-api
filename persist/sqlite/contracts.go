@@ -48,6 +48,19 @@ ORDER BY date_created ASC`
 		start = stats.NormalizePeriod(start, period)
 		end = stats.NormalizePeriod(end, period)
 
+		switch period {
+		case stats.PeriodHourly: // end of the hour
+			end = end.Add(time.Hour)
+		case stats.PeriodDaily: // end of the day
+			end = end.AddDate(0, 0, 1)
+		case stats.PeriodWeekly: // end of the week
+			end = end.AddDate(0, 0, 7-int(end.Weekday()))
+		case stats.PeriodMonthly: // end of the month
+			end = end.AddDate(0, 1, 0)
+		default:
+			panic("invalid period")
+		}
+
 		rows, err := tx.Query(query, sqlTime(start), sqlTime(end))
 		if err != nil {
 			return err
