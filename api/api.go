@@ -165,8 +165,9 @@ func (a *api) handleGetWeb3Index(c jape.Context) {
 
 	y, m, _ := now.Date()
 	start := time.Date(y-2, m, 1, 0, 0, 0, 0, now.Location())
+	end := now.AddDate(0, 0, 1)
 
-	days, err := a.sp.Periods(start, now, stats.PeriodDaily)
+	days, err := a.sp.Periods(start, end, stats.PeriodDaily)
 	if err != nil {
 		c.Error(err, http.StatusInternalServerError)
 		return
