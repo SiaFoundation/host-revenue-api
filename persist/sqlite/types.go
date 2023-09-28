@@ -110,9 +110,12 @@ func (st *sqlTime) Scan(src any) error {
 	case int64:
 		*st = sqlTime(time.Unix(src, 0))
 		return nil
+	case time.Time:
+		*st = sqlTime(src)
 	default:
-		return fmt.Errorf("cannot scan %T to Time", src)
+		return fmt.Errorf("cannot scan %T to sqlTime", src)
 	}
+	return nil
 }
 
 func (st sqlTime) Value() (driver.Value, error) {

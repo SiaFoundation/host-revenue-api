@@ -10,13 +10,26 @@ import (
 
 func (s *Store) Metrics(timestamp time.Time) (stats stats.ContractState, err error) {
 	err = s.transaction(func(tx txn) error {
-		const query = `SELECT active_contracts, valid_contracts, missed_contracts, total_payouts, estimated_revenue
+		const query = `SELECT active_contracts, valid_contracts, missed_contracts, total_payouts, estimated_revenue, date_created 
 FROM hourly_contract_stats 
 WHERE date_created <= $1 
 ORDER BY date_created DESC 
 LIMIT 1`
-		stats.Timestamp = timestamp
-		return tx.QueryRow(query, timestamp).Scan(&stats.Active, &stats.Valid, &stats.Missed, (*sqlCurrency)(&stats.Payout), (*sqlCurrency)(&stats.Revenue))
+
+		err := tx.QueryRow(query, timestamp).Scan(&stats.Active, &stats.Valid, &stats.Missed, (*sqlCurrency)(&stats.Payout), (*sqlCurrency)(&stats.Revenue), (*sqlTime)(&stats.Timestamp))
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrNoData
+		} else if err != nil {
+			return err
+		}
+
+		err = tx.QueryRow(`SELECT usd_rate, eur_rate, btc_rate FROM market_data ORDER BY ABS(date_created - $1) LIMIT 1`, sqlTime(stats.Timestamp)).Scan(&stats.ExchangeRates.USD, &stats.ExchangeRates.EUR, &stats.ExchangeRates.BTC)
+		if errors.Is(err, sql.ErrNoRows) {
+			return errors.New("no exchange rate data")
+		} else if err != nil {
+			return err
+		}
+		return nil
 	})
 	return
 }
