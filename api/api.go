@@ -172,10 +172,11 @@ func (a *api) handleGetWeb3Index(c jape.Context) {
 		return
 	}
 
-	for _, day := range days {
+	for i := len(days) - 1; i > 0; i-- {
+		current, prev := days[i], days[i-1]
 		resp.Days = append(resp.Days, Web3IndexDay{
-			Date:    day.Timestamp.Unix(),
-			Revenue: day.Revenue.USD,
+			Date:    current.Timestamp.Unix(),
+			Revenue: current.Revenue.USD - prev.Revenue.USD,
 		})
 	}
 	c.Encode(resp)
