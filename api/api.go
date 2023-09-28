@@ -189,8 +189,8 @@ func NewServer(sp StatProvider, log *zap.Logger) http.Handler {
 	}
 
 	return jape.Mux(map[string]jape.Handler{
-		"GET /":                  a.handleGetRevenue,
-		"GET /:period":           a.handleGetRevenuePeriods,
-		"GET /web3index/revenue": a.handleGetWeb3Index,
+		"GET /metrics/revenue":                a.handleGetRevenue,
+		"GET /metrics/revenue/:period":        a.handleGetRevenuePeriods,
+		"GET /integrations/web3index/revenue": a.handleGetWeb3Index,
 	})
 }
