@@ -1,16 +1,16 @@
 CREATE TABLE hourly_contract_stats (
-	date_created DATETIME PRIMARY KEY,
+	date_created INTEGER PRIMARY KEY,
 	active_contracts INTEGER NOT NULL,
 	valid_contracts INTEGER NOT NULL,
 	missed_contracts INTEGER NOT NULL,
 	total_payouts_sc BLOB NOT NULL,
-	total_payouts_usd FLOAT NOT NULL,
-	total_payouts_eur FLOAT NOT NULL,
-	total_payouts_btc FLOAT NOT NULL,
+	total_payouts_usd TEXT NOT NULL,
+	total_payouts_eur TEXT NOT NULL,
+	total_payouts_btc TEXT NOT NULL,
 	estimated_revenue_sc BLOB NOT NULL,
-	estimated_revenue_usd FLOAT NOT NULL,
-	estimated_revenue_eur FLOAT NOT NULL,
-	estimated_revenue_btc FLOAT NOT NULL
+	estimated_revenue_usd TEXT NOT NULL,
+	estimated_revenue_eur TEXT NOT NULL,
+	estimated_revenue_btc TEXT NOT NULL
 );
 
 CREATE TABLE blocks (
@@ -21,10 +21,10 @@ CREATE TABLE blocks (
 );
 
 CREATE TABLE market_data (
-	date_created DATETIME PRIMARY KEY,
-	usd_rate BLOB NOT NULL,
-	eur_rate BLOB NOT NULL,
-	btc_rate BLOB NOT NULL
+	date_created INTEGER PRIMARY KEY,
+	usd_rate TEXT NOT NULL,
+	eur_rate TEXT NOT NULL,
+	btc_rate TEXT NOT NULL
 );
 
 CREATE TABLE active_contracts (
