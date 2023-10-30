@@ -8,7 +8,16 @@ import (
 )
 
 func scanContractState(row scanner) (state stats.ContractState, err error) {
-	err = row.Scan(&state.Active, &state.Valid, &state.Missed, (*sqlCurrency)(&state.Payout.SC), &state.Payout.USD, &state.Payout.EUR, &state.Payout.BTC, (*sqlCurrency)(&state.Revenue.SC), &state.Revenue.USD, &state.Revenue.EUR, &state.Revenue.BTC, (*sqlTime)(&state.Timestamp))
+	err = row.Scan(&state.Active, &state.Valid, &state.Missed,
+		(*sqlCurrency)(&state.Payout.SC),
+		&state.Payout.USD,
+		&state.Payout.EUR,
+		&state.Payout.BTC,
+		(*sqlCurrency)(&state.Revenue.SC),
+		&state.Revenue.USD,
+		&state.Revenue.EUR,
+		&state.Revenue.BTC,
+		(*sqlTime)(&state.Timestamp))
 	return
 }
 

@@ -105,7 +105,7 @@ func (a *api) handleGetWeb3Index(c jape.Context) {
 		c.Error(err, http.StatusInternalServerError)
 		return
 	}
-	resp.Revenue.Now = revenue.Revenue.USD
+	resp.Revenue.Now = revenue.Revenue.USD.InexactFloat64()
 
 	oneDayAgo := now.AddDate(0, 0, -1)
 	revenue, err = a.sp.Metrics(oneDayAgo)
@@ -113,7 +113,7 @@ func (a *api) handleGetWeb3Index(c jape.Context) {
 		c.Error(err, http.StatusInternalServerError)
 		return
 	}
-	resp.Revenue.OneDayAgo = revenue.Revenue.USD
+	resp.Revenue.OneDayAgo = revenue.Revenue.USD.InexactFloat64()
 
 	twoDaysAgo := now.AddDate(0, 0, -2)
 	revenue, err = a.sp.Metrics(twoDaysAgo)
@@ -121,7 +121,7 @@ func (a *api) handleGetWeb3Index(c jape.Context) {
 		c.Error(err, http.StatusInternalServerError)
 		return
 	}
-	resp.Revenue.TwoDaysAgo = revenue.Revenue.USD
+	resp.Revenue.TwoDaysAgo = revenue.Revenue.USD.InexactFloat64()
 
 	oneWeekAgo := now.AddDate(0, 0, -7)
 	revenue, err = a.sp.Metrics(oneWeekAgo)
@@ -129,7 +129,7 @@ func (a *api) handleGetWeb3Index(c jape.Context) {
 		c.Error(err, http.StatusInternalServerError)
 		return
 	}
-	resp.Revenue.OneWeekAgo = revenue.Revenue.USD
+	resp.Revenue.OneWeekAgo = revenue.Revenue.USD.InexactFloat64()
 
 	twoWeeksAgo := now.AddDate(0, 0, -14)
 	revenue, err = a.sp.Metrics(twoWeeksAgo)
@@ -137,7 +137,7 @@ func (a *api) handleGetWeb3Index(c jape.Context) {
 		c.Error(err, http.StatusInternalServerError)
 		return
 	}
-	resp.Revenue.TwoWeeksAgo = revenue.Revenue.USD
+	resp.Revenue.TwoWeeksAgo = revenue.Revenue.USD.InexactFloat64()
 
 	thirtyDaysAgo := now.AddDate(0, 0, -30)
 	revenue, err = a.sp.Metrics(thirtyDaysAgo)
@@ -145,7 +145,7 @@ func (a *api) handleGetWeb3Index(c jape.Context) {
 		c.Error(err, http.StatusInternalServerError)
 		return
 	}
-	resp.Revenue.ThirtyDaysAgo = revenue.Revenue.USD
+	resp.Revenue.ThirtyDaysAgo = revenue.Revenue.USD.InexactFloat64()
 
 	sixtyDaysAgo := now.AddDate(0, 0, -60)
 	revenue, err = a.sp.Metrics(sixtyDaysAgo)
@@ -153,7 +153,7 @@ func (a *api) handleGetWeb3Index(c jape.Context) {
 		c.Error(err, http.StatusInternalServerError)
 		return
 	}
-	resp.Revenue.SixtyDaysAgo = revenue.Revenue.USD
+	resp.Revenue.SixtyDaysAgo = revenue.Revenue.USD.InexactFloat64()
 
 	ninetyDaysAgo := now.AddDate(0, 0, -90)
 	revenue, err = a.sp.Metrics(ninetyDaysAgo)
@@ -161,7 +161,7 @@ func (a *api) handleGetWeb3Index(c jape.Context) {
 		c.Error(err, http.StatusInternalServerError)
 		return
 	}
-	resp.Revenue.NinetyDaysAgo = revenue.Revenue.USD
+	resp.Revenue.NinetyDaysAgo = revenue.Revenue.USD.InexactFloat64()
 
 	start := now.AddDate(-1, 0, 0)
 	start = start.AddDate(0, 0, -int(start.Weekday()+1))
@@ -175,7 +175,7 @@ func (a *api) handleGetWeb3Index(c jape.Context) {
 		current, prev := days[i], days[i-1]
 		resp.Days = append(resp.Days, Web3IndexDay{
 			Date:    current.Timestamp.Unix(),
-			Revenue: current.Revenue.USD - prev.Revenue.USD,
+			Revenue: current.Revenue.USD.Sub(prev.Revenue.USD).InexactFloat64(),
 		})
 	}
 	c.Encode(resp)

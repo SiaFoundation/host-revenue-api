@@ -6,23 +6,25 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/shopspring/decimal"
 	"github.com/siacentral/apisdkgo/sia"
 	"go.sia.tech/host-revenue-api/build"
 	"go.sia.tech/host-revenue-api/persist/sqlite"
 	"go.uber.org/zap"
 )
 
-func updateMarketData(store *sqlite.Store, timestamp time.Time) error {
+func updateMarketData(store *sqlite.Store, timestamp time.Time) (usd, eur, btc decimal.Decimal, err error) {
 	scc := sia.NewClient()
 	rates, err := scc.GetHistoricalExchangeRate(timestamp)
 	if err != nil {
-		return fmt.Errorf("failed to fetch exchange rate: %w", err)
+		return decimal.Zero, decimal.Zero, decimal.Zero, fmt.Errorf("failed to fetch exchange rate: %w", err)
 	}
 
-	if err := store.AddMarketData(rates["usd"], rates["eur"], rates["btc"], timestamp); err != nil {
-		return fmt.Errorf("failed to add market data: %w", err)
+	usd, eur, btc = decimal.NewFromFloat(rates["usd"]), decimal.NewFromFloat(rates["eur"]), decimal.NewFromFloat(rates["btc"])
+	if err := store.AddMarketData(usd, eur, btc, timestamp); err != nil {
+		return decimal.Zero, decimal.Zero, decimal.Zero, fmt.Errorf("failed to add market data: %w", err)
 	}
-	return nil
+	return
 }
 
 func syncMarketData(ctx context.Context, store *sqlite.Store, log *zap.Logger) {
@@ -60,7 +62,7 @@ func syncMarketData(ctx context.Context, store *sqlite.Store, log *zap.Logger) {
 				default:
 				}
 
-				if err := store.AddMarketData(rate.Rates["usd"].InexactFloat64(), rate.Rates["eur"].InexactFloat64(), rate.Rates["btc"].InexactFloat64(), rate.Timestamp); err != nil {
+				if err := store.AddMarketData(rate.Rates["usd"], rate.Rates["eur"], rate.Rates["btc"], rate.Timestamp); err != nil {
 					log.Warn("failed to add market data", zap.Error(err), zap.Time("timestamp", rate.Timestamp))
 				} else {
 					log.Info("added market data", zap.Time("timestamp", rate.Timestamp))
@@ -88,12 +90,15 @@ func syncMarketData(ctx context.Context, store *sqlite.Store, log *zap.Logger) {
 		default:
 		}
 
-		if err := updateMarketData(store, current); err != nil {
-			log.Warn("failed to update market data", zap.Error(err), zap.Time("timestamp", current))
-		} else {
-			current = current.Add(time.Hour) // only increment on success, retry on failure
-			log.Info("added market data", zap.Time("timestamp", current))
+		usd, eur, btc, err := updateMarketData(store, current)
+		if err != nil {
+			log.Error("failed to update market data", zap.Error(err), zap.Time("timestamp", current))
+			time.Sleep(time.Second)
+			continue
 		}
+
+		current = current.Add(time.Hour) // only increment on success, retry on failure
+		log.Info("added market data", zap.Time("timestamp", current), zap.Stringer("usd", usd), zap.Stringer("eur", eur), zap.Stringer("btc", btc))
 	}
 
 	// spawn a goroutine to update market data every 5 minutes
@@ -104,10 +109,12 @@ func syncMarketData(ctx context.Context, store *sqlite.Store, log *zap.Logger) {
 			case <-ctx.Done():
 				return
 			case <-t.C:
-			}
-
-			if err := updateMarketData(store, time.Now().Truncate(time.Hour)); err != nil {
-				log.Warn("failed to update market data", zap.Error(err))
+				timestamp := time.Now().Truncate(time.Hour)
+				usd, eur, btc, err := updateMarketData(store, timestamp)
+				if err != nil {
+					log.Error("failed to update market data", zap.Error(err))
+				}
+				log.Debug("added market data", zap.Time("timestamp", timestamp), zap.Stringer("usd", usd), zap.Stringer("eur", eur), zap.Stringer("btc", btc))
 			}
 		}
 	}()

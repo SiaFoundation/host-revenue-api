@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"math/rand"
-	"strings"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3" // import sqlite3 driver
@@ -184,32 +183,6 @@ func (lt *loggedTxn) QueryRow(query string, args ...any) *loggedRow {
 		lt.log.Debug("slow query row", zap.String("query", query), zap.Duration("elapsed", dur), zap.Stack("stack"))
 	}
 	return &loggedRow{row, lt.log.Named("row")}
-}
-
-func queryPlaceHolders(n int) string {
-	if n == 0 {
-		return ""
-	} else if n == 1 {
-		return "?"
-	}
-	var b strings.Builder
-	b.Grow(((n - 1) * 2) + 1) // ?,?
-	for i := 0; i < n-1; i++ {
-		b.WriteString("?,")
-	}
-	b.WriteString("?")
-	return b.String()
-}
-
-func queryArgs[T any](args []T) []any {
-	if len(args) == 0 {
-		return nil
-	}
-	out := make([]any, len(args))
-	for i, arg := range args {
-		out[i] = arg
-	}
-	return out
 }
 
 // getDBVersion returns the current version of the database.
