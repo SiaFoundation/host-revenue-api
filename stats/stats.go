@@ -3,6 +3,7 @@ package stats
 import (
 	"time"
 
+	"github.com/shopspring/decimal"
 	"go.sia.tech/core/types"
 	"go.uber.org/zap"
 )
@@ -30,10 +31,10 @@ type (
 	}
 
 	Values struct {
-		SC  types.Currency `json:"sc"`
-		USD float64        `json:"usd"`
-		EUR float64        `json:"eur"`
-		BTC float64        `json:"btc"`
+		SC  types.Currency  `json:"sc"`
+		USD decimal.Decimal `json:"usd"`
+		EUR decimal.Decimal `json:"eur"`
+		BTC decimal.Decimal `json:"btc"`
 	}
 
 	ContractState struct {
@@ -57,6 +58,15 @@ type (
 		store Store
 	}
 )
+
+func (v Values) Add(b Values) Values {
+	return Values{
+		SC:  v.SC.Add(b.SC),
+		USD: v.USD.Add(b.USD),
+		EUR: v.EUR.Add(b.EUR),
+		BTC: v.BTC.Add(b.BTC),
+	}
+}
 
 func (p *Provider) Metrics(timestamp time.Time) (ContractState, error) {
 	return p.store.Metrics(timestamp)
